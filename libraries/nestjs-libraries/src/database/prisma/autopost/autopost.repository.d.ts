@@ -1,0 +1,96 @@
+import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
+import { AutopostDto } from '@gitroom/nestjs-libraries/dtos/autopost/autopost.dto';
+export declare class AutopostRepository {
+    private _autoPost;
+    constructor(_autoPost: PrismaRepository<'autoPost'>);
+    getTotal(orgId: string): import(".prisma/client").Prisma.PrismaPromise<number>;
+    getAutoposts(orgId: string): import(".prisma/client").Prisma.PrismaPromise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        organizationId: string;
+        content: string | null;
+        url: string;
+        title: string;
+        lastUrl: string;
+        onSlot: boolean;
+        syncLast: boolean;
+        active: boolean;
+        addPicture: boolean;
+        generateContent: boolean;
+        integrations: string;
+    }[]>;
+    deleteAutopost(orgId: string, id: string): import(".prisma/client").Prisma.Prisma__AutoPostClient<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        organizationId: string;
+        content: string | null;
+        url: string;
+        title: string;
+        lastUrl: string;
+        onSlot: boolean;
+        syncLast: boolean;
+        active: boolean;
+        addPicture: boolean;
+        generateContent: boolean;
+        integrations: string;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    getAutopost(id: string): import(".prisma/client").Prisma.Prisma__AutoPostClient<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        organizationId: string;
+        content: string | null;
+        url: string;
+        title: string;
+        lastUrl: string;
+        onSlot: boolean;
+        syncLast: boolean;
+        active: boolean;
+        addPicture: boolean;
+        generateContent: boolean;
+        integrations: string;
+    }, null, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    updateUrl(id: string, url: string): import(".prisma/client").Prisma.Prisma__AutoPostClient<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        organizationId: string;
+        content: string | null;
+        url: string;
+        title: string;
+        lastUrl: string;
+        onSlot: boolean;
+        syncLast: boolean;
+        active: boolean;
+        addPicture: boolean;
+        generateContent: boolean;
+        integrations: string;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    changeActive(orgId: string, id: string, active: boolean): import(".prisma/client").Prisma.Prisma__AutoPostClient<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        deletedAt: Date | null;
+        organizationId: string;
+        content: string | null;
+        url: string;
+        title: string;
+        lastUrl: string;
+        onSlot: boolean;
+        syncLast: boolean;
+        active: boolean;
+        addPicture: boolean;
+        generateContent: boolean;
+        integrations: string;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    createAutopost(orgId: string, body: AutopostDto, id?: string): Promise<{
+        id: string;
+        active: boolean;
+    }>;
+}

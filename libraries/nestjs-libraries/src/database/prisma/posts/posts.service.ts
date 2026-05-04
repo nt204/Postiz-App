@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   ValidationPipe,
 } from '@nestjs/common';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
@@ -46,6 +47,7 @@ type PostWithConditionals = Post & {
 @Injectable()
 export class PostsService {
   private storage = UploadFactory.createStorage();
+  private readonly logger = new Logger(PostsService.name);
   constructor(
     private _postRepository: PostsRepository,
     private _integrationManager: IntegrationManager,
@@ -56,6 +58,22 @@ export class PostsService {
     private _temporalService: TemporalService,
     private _refreshIntegrationService: RefreshIntegrationService
   ) {}
+
+  private getWorkflowErrorMessage(err: unknown) {
+    if (err instanceof Error) {
+      return err.stack || err.message;
+    }
+
+    if (typeof err === 'string') {
+      return err;
+    }
+
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return 'Unknown workflow start error';
+    }
+  }
 
   searchForMissingThreeHoursPosts() {
     return this._postRepository.searchForMissingThreeHoursPosts();
@@ -728,7 +746,22 @@ export class PostsService {
             },
           ]),
         });
-    } catch (err) {}
+    } catch (err) {
+      const message = this.getWorkflowErrorMessage(err);
+      this.logger.error(
+        `Failed to start post workflow for post ${postId} on queue ${taskQueue}`,
+        message
+      );
+
+      await this.changeState(postId, 'ERROR', message, {
+        stage: 'startWorkflow',
+        postId,
+        organizationId: orgId,
+        taskQueue,
+      });
+
+      throw err;
+    }
   }
 
   async createPost(orgId: string, body: CreatePostDto): Promise<any[]> {

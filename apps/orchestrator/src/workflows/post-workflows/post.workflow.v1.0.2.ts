@@ -48,6 +48,42 @@ const poke = defineSignal('poke');
 
 const iterate = Array.from({ length: 5 });
 
+const formatWorkflowError = (err: unknown) => {
+  if (
+    err instanceof ActivityFailure &&
+    err.cause instanceof ApplicationFailure
+  ) {
+    const details = err.cause.details?.[0] as
+      | {
+          identifier?: string;
+          json?: string;
+          body?: unknown;
+        }
+      | undefined;
+
+    const parts = [
+      err.cause.message || err.message || 'Unknown activity failure',
+      details?.identifier ? `identifier=${details.identifier}` : '',
+      details?.json ? `provider=${details.json}` : '',
+      details?.body
+        ? `request=${typeof details.body === 'string' ? details.body : JSON.stringify(details.body)}`
+        : '',
+    ].filter(Boolean);
+
+    return parts.join('\n');
+  }
+
+  if (err instanceof Error) {
+    return err.stack || err.message;
+  }
+
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return 'Unknown workflow error';
+  }
+};
+
 export async function postWorkflowV102({
   taskQueue,
   postId,
@@ -200,7 +236,12 @@ export async function postWorkflowV102({
             err?.cause?.message || ''
           );
           if (!refresh || !refresh.accessToken) {
-            await changeState(postsList[0].id, 'ERROR', err, postsList);
+            await changeState(
+              postsList[0].id,
+              'ERROR',
+              formatWorkflowError(err),
+              postsList
+            );
             return false;
           }
 
@@ -209,7 +250,12 @@ export async function postWorkflowV102({
         }
 
         // for other errors, change state and inform the user if needed
-        await changeState(postsList[0].id, 'ERROR', err, postsList);
+        await changeState(
+          postsList[0].id,
+          'ERROR',
+          formatWorkflowError(err),
+          postsList
+        );
 
         // specific case for bad body errors
         if (

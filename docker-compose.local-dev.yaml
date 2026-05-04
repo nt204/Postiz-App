@@ -1,0 +1,94 @@
+services:
+  postiz-postgres:
+    image: postgres:17-alpine
+    container_name: postiz-local-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: postiz-password
+      POSTGRES_USER: postiz-user
+      POSTGRES_DB: postiz-db-local
+    volumes:
+      - postiz-local-postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    networks:
+      - postiz-network
+
+  postiz-redis:
+    image: redis:7.2
+    container_name: postiz-local-redis
+    restart: unless-stopped
+    volumes:
+      - postiz-local-redis-data:/data
+    ports:
+      - "6380:6379"
+    networks:
+      - postiz-network
+
+  postiz-pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: postiz-local-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8082:80"
+    networks:
+      - postiz-network
+
+  temporal-elasticsearch:
+    container_name: postiz-local-temporal-elasticsearch
+    image: elasticsearch:7.17.27
+    environment:
+      - cluster.routing.allocation.disk.threshold_enabled=true
+      - cluster.routing.allocation.disk.watermark.low=512mb
+      - cluster.routing.allocation.disk.watermark.high=256mb
+      - cluster.routing.allocation.disk.watermark.flood_stage=128mb
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms256m -Xmx256m
+      - xpack.security.enabled=false
+    networks:
+      - temporal-network
+
+  temporal-postgresql:
+    container_name: postiz-local-temporal-postgresql
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: temporal
+    networks:
+      - temporal-network
+
+  temporal:
+    container_name: postiz-local-temporal
+    image: temporalio/auto-setup:1.28.1
+    depends_on:
+      - temporal-postgresql
+      - temporal-elasticsearch
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postiz-local-temporal-postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - ENABLE_ES=true
+      - ES_SEEDS=postiz-local-temporal-elasticsearch
+      - ES_VERSION=v7
+      - TEMPORAL_NAMESPACE=default
+    ports:
+      - "7233:7233"
+    networks:
+      - temporal-network
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+volumes:
+  postiz-local-postgres-data:
+  postiz-local-redis-data:
+
+networks:
+  postiz-network:
+  temporal-network:
+    name: postiz-local-temporal-network

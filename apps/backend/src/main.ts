@@ -23,7 +23,7 @@ async function start() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
     cors: {
-      ...(!process.env.NOT_SECURED ? { credentials: true } : {}),
+      credentials: true,
       allowedHeaders: [
         'Content-Type',
         'Authorization',
@@ -47,7 +47,9 @@ async function start() {
     },
   });
 
-  await startMcp(app);
+  if (process.env.ENABLE_MCP === 'true') {
+    await startMcp(app);
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -64,7 +66,9 @@ async function start() {
   app.useGlobalFilters(new SubscriptionExceptionFilter());
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  loadSwagger(app);
+  if (process.env.ENABLE_SWAGGER === 'true') {
+    loadSwagger(app);
+  }
 
   const port = process.env.PORT || 3000;
 

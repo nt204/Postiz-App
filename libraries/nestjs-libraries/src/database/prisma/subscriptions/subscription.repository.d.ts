@@ -1,0 +1,190 @@
+import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
+import dayjs from 'dayjs';
+import { Organization } from '@prisma/client';
+export declare class SubscriptionRepository {
+    private readonly _subscription;
+    private readonly _organization;
+    private readonly _user;
+    private readonly _credits;
+    private _usedCodes;
+    constructor(_subscription: PrismaRepository<'subscription'>, _organization: PrismaRepository<'organization'>, _user: PrismaRepository<'user'>, _credits: PrismaRepository<'credits'>, _usedCodes: PrismaRepository<'usedCodes'>);
+    getUserAccount(userId: string): import(".prisma/client").Prisma.Prisma__UserClient<{
+        account: string;
+        connectedAccount: boolean;
+    }, null, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    getCode(code: string): import(".prisma/client").Prisma.Prisma__UsedCodesClient<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        orgId: string;
+        code: string;
+    }, null, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    updateAccount(userId: string, account: string): import(".prisma/client").Prisma.Prisma__UserClient<{
+        password: string | null;
+        email: string;
+        id: string;
+        name: string | null;
+        createdAt: Date;
+        updatedAt: Date;
+        providerName: import(".prisma/client").$Enums.Provider;
+        lastName: string | null;
+        isSuperAdmin: boolean;
+        bio: string | null;
+        audience: number;
+        providerId: string | null;
+        timezone: number;
+        lastReadNotifications: Date;
+        inviteId: string | null;
+        activated: boolean;
+        account: string | null;
+        connectedAccount: boolean;
+        lastOnline: Date;
+        ip: string | null;
+        agent: string | null;
+        sendSuccessEmails: boolean;
+        sendFailureEmails: boolean;
+        sendStreakEmails: boolean;
+        pictureId: string | null;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    getSubscriptionByOrganizationId(organizationId: string): import(".prisma/client").Prisma.Prisma__SubscriptionClient<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        subscriptionTier: import(".prisma/client").$Enums.SubscriptionTier;
+        identifier: string | null;
+        cancelAt: Date | null;
+        period: import(".prisma/client").$Enums.Period;
+        totalChannels: number;
+        isLifetime: boolean;
+        deletedAt: Date | null;
+        organizationId: string;
+    }, null, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    updateConnectedStatus(account: string, accountCharges: boolean): import(".prisma/client").Prisma.PrismaPromise<import(".prisma/client").Prisma.BatchPayload>;
+    getCustomerIdByOrgId(organizationId: string): import(".prisma/client").Prisma.Prisma__OrganizationClient<{
+        paymentId: string;
+    }, null, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    checkSubscription(organizationId: string, subscriptionId: string): import(".prisma/client").Prisma.Prisma__SubscriptionClient<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        subscriptionTier: import(".prisma/client").$Enums.SubscriptionTier;
+        identifier: string | null;
+        cancelAt: Date | null;
+        period: import(".prisma/client").$Enums.Period;
+        totalChannels: number;
+        isLifetime: boolean;
+        deletedAt: Date | null;
+        organizationId: string;
+    }, null, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    deleteSubscriptionByCustomerId(customerId: string): import(".prisma/client").Prisma.PrismaPromise<import(".prisma/client").Prisma.BatchPayload>;
+    updateCustomerId(organizationId: string, customerId: string): import(".prisma/client").Prisma.Prisma__OrganizationClient<{
+        id: string;
+        name: string;
+        description: string | null;
+        apiKey: string | null;
+        paymentId: string | null;
+        streakSince: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+        allowTrial: boolean;
+        isTrailing: boolean;
+        shortlink: import(".prisma/client").$Enums.ShortLinkPreference;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    getSubscriptionByOrgId(orgId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        subscriptionTier: import(".prisma/client").$Enums.SubscriptionTier;
+        identifier: string | null;
+        cancelAt: Date | null;
+        period: import(".prisma/client").$Enums.Period;
+        totalChannels: number;
+        isLifetime: boolean;
+        deletedAt: Date | null;
+        organizationId: string;
+    }>;
+    getSubscriptionByCustomerId(customerId: string): Promise<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        subscriptionTier: import(".prisma/client").$Enums.SubscriptionTier;
+        identifier: string | null;
+        cancelAt: Date | null;
+        period: import(".prisma/client").$Enums.Period;
+        totalChannels: number;
+        isLifetime: boolean;
+        deletedAt: Date | null;
+        organizationId: string;
+    }>;
+    getOrganizationByCustomerId(customerId: string): Promise<{
+        id: string;
+        name: string;
+        description: string | null;
+        apiKey: string | null;
+        paymentId: string | null;
+        streakSince: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+        allowTrial: boolean;
+        isTrailing: boolean;
+        shortlink: import(".prisma/client").$Enums.ShortLinkPreference;
+    }>;
+    createOrUpdateSubscription(isTrailing: boolean, identifier: string, customerId: string, totalChannels: number, billing: 'STANDARD' | 'TEAM' | 'PRO' | 'ULTIMATE', period: 'MONTHLY' | 'YEARLY', cancelAt: number | null, code?: string, org?: {
+        id: string;
+    }): Promise<void>;
+    getSubscriptionByIdentifier(identifier: string): import(".prisma/client").Prisma.Prisma__SubscriptionClient<{
+        organization: {
+            id: string;
+            name: string;
+            description: string | null;
+            apiKey: string | null;
+            paymentId: string | null;
+            streakSince: Date | null;
+            createdAt: Date;
+            updatedAt: Date;
+            allowTrial: boolean;
+            isTrailing: boolean;
+            shortlink: import(".prisma/client").$Enums.ShortLinkPreference;
+        };
+    } & {
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        subscriptionTier: import(".prisma/client").$Enums.SubscriptionTier;
+        identifier: string | null;
+        cancelAt: Date | null;
+        period: import(".prisma/client").$Enums.Period;
+        totalChannels: number;
+        isLifetime: boolean;
+        deletedAt: Date | null;
+        organizationId: string;
+    }, null, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    getSubscription(organizationId: string): import(".prisma/client").Prisma.Prisma__SubscriptionClient<{
+        id: string;
+        createdAt: Date;
+        updatedAt: Date;
+        subscriptionTier: import(".prisma/client").$Enums.SubscriptionTier;
+        identifier: string | null;
+        cancelAt: Date | null;
+        period: import(".prisma/client").$Enums.Period;
+        totalChannels: number;
+        isLifetime: boolean;
+        deletedAt: Date | null;
+        organizationId: string;
+    }, null, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+    getCreditsFrom(organizationId: string, from: dayjs.Dayjs, type?: string): Promise<number>;
+    useCredit<T>(org: Organization, type: string, func: () => Promise<T>): Promise<T>;
+    setCustomerId(orgId: string, customerId: string): import(".prisma/client").Prisma.Prisma__OrganizationClient<{
+        id: string;
+        name: string;
+        description: string | null;
+        apiKey: string | null;
+        paymentId: string | null;
+        streakSince: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+        allowTrial: boolean;
+        isTrailing: boolean;
+        shortlink: import(".prisma/client").$Enums.ShortLinkPreference;
+    }, never, import("@prisma/client/runtime/library").DefaultArgs, import(".prisma/client").Prisma.PrismaClientOptions>;
+}

@@ -1,0 +1,190 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.IntegrationSchedulePostTool = void 0;
+const tslib_1 = require("tslib");
+const tools_1 = require("@mastra/core/tools");
+const zod_1 = require("zod");
+const common_1 = require("@nestjs/common");
+const integration_manager_1 = require("../../integrations/integration.manager");
+const integration_service_1 = require("../../database/prisma/integrations/integration.service");
+const posts_service_1 = require("../../database/prisma/posts/posts.service");
+const make_is_1 = require("../../services/make.is");
+const class_validator_1 = require("class-validator");
+const auth_context_1 = require("../auth.context");
+const strip_html_validation_1 = require("../../../../helpers/src/utils/strip.html.validation");
+const count_length_1 = require("../../../../helpers/src/utils/count.length");
+function countCharacters(text, type) {
+    if (type !== 'x') {
+        return text.length;
+    }
+    return (0, count_length_1.weightedLength)(text);
+}
+let IntegrationSchedulePostTool = class IntegrationSchedulePostTool {
+    constructor(_postsService, _integrationService) {
+        this._postsService = _postsService;
+        this._integrationService = _integrationService;
+        this.name = 'integrationSchedulePostTool';
+    }
+    run() {
+        return (0, tools_1.createTool)({
+            id: 'schedulePostTool',
+            mcp: {
+                annotations: {
+                    title: 'Schedule Social Media Post',
+                    readOnlyHint: false,
+                    destructiveHint: false,
+                    idempotentHint: false,
+                    openWorldHint: true,
+                },
+            },
+            description: `
+This tool allows you to schedule a post to a social media platform, based on integrationSchema tool.
+So for example:
+
+If the user want to post a post to LinkedIn with one comment
+- socialPost array length will be one
+- postsAndComments array length will be two (one for the post, one for the comment)
+
+If the user want to post 20 posts for facebook each in individual days without comments
+- socialPost array length will be 20
+- postsAndComments array length will be one
+
+If the tools return errors, you would need to rerun it with the right parameters, don't ask again, just run it
+`,
+            inputSchema: zod_1.z.object({
+                socialPost: zod_1.z
+                    .array(zod_1.z.object({
+                    integrationId: zod_1.z
+                        .string()
+                        .describe('The id of the integration (not internal id)'),
+                    isPremium: zod_1.z
+                        .boolean()
+                        .describe("If the integration is X, return if it's premium or not"),
+                    date: zod_1.z.string().describe('The date of the post in UTC time'),
+                    shortLink: zod_1.z
+                        .boolean()
+                        .describe('If the post has a link inside, we can ask the user if they want to add a short link'),
+                    type: zod_1.z
+                        .enum(['draft', 'schedule', 'now'])
+                        .describe('The type of the post, if we pass now, we should pass the current date also'),
+                    postsAndComments: zod_1.z
+                        .array(zod_1.z.object({
+                        content: zod_1.z
+                            .string()
+                            .describe("The content of the post, HTML, Each line must be wrapped in <p> here is the possible tags: h1, h2, h3, u, strong, li, ul, p (you can't have u and strong together)"),
+                        attachments: zod_1.z
+                            .array(zod_1.z.string())
+                            .describe('The image of the post (URLS)'),
+                    }))
+                        .describe('first item is the post, every other item is the comments'),
+                    settings: zod_1.z
+                        .array(zod_1.z.object({
+                        key: zod_1.z
+                            .string()
+                            .describe('Name of the settings key to pass'),
+                        value: zod_1.z
+                            .any()
+                            .describe('Value of the key, always prefer the id then label if possible'),
+                    }))
+                        .describe('This relies on the integrationSchema tool to get the settings [input:settings]'),
+                }))
+                    .describe('Individual post'),
+            }),
+            outputSchema: zod_1.z.object({
+                output: zod_1.z
+                    .array(zod_1.z.object({
+                    postId: zod_1.z.string(),
+                    integration: zod_1.z.string(),
+                }))
+                    .or(zod_1.z.object({ errors: zod_1.z.string() })),
+            }),
+            execute: async (inputData, context) => {
+                (0, auth_context_1.checkAuth)(inputData, context);
+                const organizationId = JSON.parse(context?.requestContext?.get('organization')).id;
+                const finalOutput = [];
+                const integrations = {};
+                for (const platform of inputData.socialPost) {
+                    integrations[platform.integrationId] =
+                        await this._integrationService.getIntegrationById(organizationId, platform.integrationId);
+                    const { dto, maxLength, identifier } = integration_manager_1.socialIntegrationList.find((p) => p.identifier ===
+                        integrations[platform.integrationId].providerIdentifier);
+                    if (dto) {
+                        const newDTO = new dto();
+                        const obj = Object.assign(newDTO, platform.settings.reduce((acc, s) => ({
+                            ...acc,
+                            [s.key]: s.value,
+                        }), {}));
+                        const errors = await (0, class_validator_1.validate)(obj);
+                        if (errors.length) {
+                            return {
+                                errors: JSON.stringify(errors),
+                            };
+                        }
+                        const errorsLength = [];
+                        for (const post of platform.postsAndComments) {
+                            const maximumCharacters = maxLength(platform.isPremium);
+                            const strip = (0, strip_html_validation_1.stripHtmlValidation)('normal', post.content, true);
+                            const weightedLength = countCharacters(strip, identifier || '');
+                            const totalCharacters = weightedLength > strip.length ? weightedLength : strip.length;
+                            if (totalCharacters > (maximumCharacters || 1000000)) {
+                                errorsLength.push({
+                                    value: post.content,
+                                    error: `The maximum characters is ${maximumCharacters}, we got ${totalCharacters}, please fix it, and try integrationSchedulePostTool again.`,
+                                });
+                            }
+                        }
+                        if (errorsLength.length) {
+                            return {
+                                errors: JSON.stringify(errorsLength),
+                            };
+                        }
+                    }
+                }
+                for (const post of inputData.socialPost) {
+                    const integration = integrations[post.integrationId];
+                    if (!integration) {
+                        throw new Error('Integration not found');
+                    }
+                    const output = await this._postsService.createPost(organizationId, {
+                        date: post.date,
+                        type: post.type,
+                        shortLink: post.shortLink,
+                        tags: [],
+                        posts: [
+                            {
+                                integration,
+                                group: (0, make_is_1.makeId)(10),
+                                settings: post.settings.reduce((acc, s) => ({
+                                    ...acc,
+                                    [s.key]: s.value,
+                                }), {
+                                    __type: integration.providerIdentifier,
+                                }),
+                                value: post.postsAndComments.map((p) => ({
+                                    content: p.content,
+                                    id: (0, make_is_1.makeId)(10),
+                                    delay: 0,
+                                    image: p.attachments.map((p) => ({
+                                        id: (0, make_is_1.makeId)(10),
+                                        path: p,
+                                    })),
+                                })),
+                            },
+                        ],
+                    });
+                    finalOutput.push(...output);
+                }
+                return {
+                    output: finalOutput,
+                };
+            },
+        });
+    }
+};
+exports.IntegrationSchedulePostTool = IntegrationSchedulePostTool;
+exports.IntegrationSchedulePostTool = IntegrationSchedulePostTool = tslib_1.__decorate([
+    (0, common_1.Injectable)(),
+    tslib_1.__metadata("design:paramtypes", [posts_service_1.PostsService,
+        integration_service_1.IntegrationService])
+], IntegrationSchedulePostTool);
+//# sourceMappingURL=integration.schedule.post.js.map

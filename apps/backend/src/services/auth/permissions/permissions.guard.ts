@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import {
   AppAbility,
@@ -15,7 +15,8 @@ import { SubscriptionException } from './permission.exception.class';
 @Injectable()
 export class PoliciesGuard implements CanActivate {
   constructor(
-    private _reflector: Reflector,
+    @Inject(Reflector) private _reflector: Reflector,
+    @Inject(PermissionsService)
     private _authorizationService: PermissionsService
   ) {}
 
