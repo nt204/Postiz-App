@@ -414,7 +414,12 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
 
     let finalId = '';
     let finalUrl = '';
-    if ((firstPost?.media?.[0]?.path?.indexOf('mp4') || -2) > -1) {
+
+    const videos = (firstPost?.media || []).filter(m => m.path?.indexOf('mp4') > -1);
+    const images = (firstPost?.media || []).filter(m => m.path?.indexOf('mp4') === -1);
+
+    if (videos.length > 0 && images.length === 0) {
+      // Chỉ có video, đăng video
       const {
         id: videoId,
         permalink_url,
@@ -428,7 +433,7 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              file_url: firstPost?.media?.[0]?.path!,
+              file_url: videos[0].path!,
               description: firstPost.message,
               published: true,
             }),
@@ -440,10 +445,12 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       finalUrl = 'https://www.facebook.com/reel/' + videoId;
       finalId = videoId;
     } else {
-      const uploadPhotos = !firstPost?.media?.length
+      // Có ảnh (hoặc cả ảnh + video): đăng ảnh, bỏ qua video vì Facebook không hỗ trợ mixed media trong 1 post
+      const mediaToUpload = images.length > 0 ? images : (firstPost?.media || []);
+      const uploadPhotos = !mediaToUpload.length
         ? []
         : await Promise.all(
-            firstPost.media.map(async (media) => {
+            mediaToUpload.map(async (media) => {
               const { id: photoId } = await (
                 await this.fetch(
                   `https://graph.facebook.com/v20.0/${id}/photos?access_token=${accessToken}`,

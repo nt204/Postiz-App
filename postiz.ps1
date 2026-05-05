@@ -100,9 +100,9 @@ function Stop-AppProcesses {
     }
   }
   # Wait for all stopped processes to fully exit and release file handles
-  foreach ($pid in $stoppedPids) {
+  foreach ($stoppedPid in $stoppedPids) {
     try {
-      $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+      $proc = Get-Process -Id $stoppedPid -ErrorAction SilentlyContinue
       if ($proc) { $proc.WaitForExit(5000) | Out-Null }
     } catch {}
   }

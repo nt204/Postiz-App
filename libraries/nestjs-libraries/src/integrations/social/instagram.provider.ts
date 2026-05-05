@@ -12,6 +12,7 @@ import { SocialAbstract } from '@gitroom/nestjs-libraries/integrations/social.ab
 import { InstagramDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/instagram.dto';
 import { Integration } from '@prisma/client';
 import { Rules } from '@gitroom/nestjs-libraries/chat/rules.description.decorator';
+import { getPresignedDownloadUrl } from '@gitroom/nestjs-libraries/upload/r2.uploader';
 
 @Rules(
   "Instagram should have at least one attachment, if it's a story, it can have only one picture"
@@ -523,6 +524,15 @@ export class InstagramProvider
     };
   }
 
+  private async getInstagramVideoUrl(originalUrl: string): Promise<string> {
+    const bucketUrl = process.env.CLOUDFLARE_BUCKET_URL;
+    if (bucketUrl && originalUrl.startsWith(bucketUrl + '/')) {
+      const key = originalUrl.slice(bucketUrl.length + 1);
+      return getPresignedDownloadUrl(key, 3600);
+    }
+    return originalUrl;
+  }
+
   async post(
     id: string,
     accessToken: string,
@@ -531,11 +541,11 @@ export class InstagramProvider
     type = 'graph.facebook.com'
   ): Promise<PostResponse[]> {
     const [firstPost] = postDetails;
-    console.log('in progress', id);
     const isStory = firstPost.settings.post_type === 'story';
     const isTrialReel = !!firstPost.settings.is_trial_reel;
     const medias = await Promise.all(
       firstPost?.media?.map(async (m) => {
+        const isVideo = m.path.indexOf('.mp4') > -1;
         const caption =
           firstPost.media?.length === 1
             ? `&caption=${encodeURIComponent(firstPost.message)}`
@@ -544,22 +554,6 @@ export class InstagramProvider
           (firstPost?.media?.length || 0) > 1 && !isStory
             ? `&is_carousel_item=true`
             : ``;
-        const mediaType =
-          m.path.indexOf('.mp4') > -1
-            ? firstPost?.media?.length === 1
-              ? isStory
-                ? `video_url=${m.path}&media_type=STORIES`
-                : `video_url=${m.path}&media_type=REELS&thumb_offset=${
-                    m?.thumbnailTimestamp || 0
-                  }`
-              : isStory
-              ? `video_url=${m.path}&media_type=STORIES`
-              : `video_url=${m.path}&media_type=VIDEO&thumb_offset=${
-                  m?.thumbnailTimestamp || 0
-                }`
-            : isStory
-            ? `image_url=${m.path}&media_type=STORIES`
-            : `image_url=${m.path}`;
 
         const trialParams = isTrialReel
           ? `&trial_params=${encodeURIComponent(
@@ -577,15 +571,40 @@ export class InstagramProvider
               )}`
             : ``;
 
-        const { id: photoId } = await (
-          await this.fetch(
-            `https://${type}/v20.0/${id}/media?${mediaType}${isCarousel}${collaborators}${trialParams}&access_token=${accessToken}${caption}`,
-            {
-              method: 'POST',
-            }
-          )
-        ).json();
-        console.log('in progress2', id);
+        let photoId: string;
+
+        if (isVideo) {
+          // Use presigned URL for videos to bypass CDN bot-blocking (e.g. Cloudflare R2)
+          const videoUrl = await this.getInstagramVideoUrl(m.path);
+          let mediaTypeParam: string;
+          if (isStory) {
+            mediaTypeParam = `video_url=${encodeURIComponent(videoUrl)}&media_type=STORIES`;
+          } else if (firstPost?.media?.length === 1) {
+            mediaTypeParam = `video_url=${encodeURIComponent(videoUrl)}&media_type=REELS&thumb_offset=${m?.thumbnailTimestamp || 0}`;
+          } else {
+            mediaTypeParam = `video_url=${encodeURIComponent(videoUrl)}&media_type=VIDEO&thumb_offset=${m?.thumbnailTimestamp || 0}`;
+          }
+
+          const res = await (
+            await this.fetch(
+              `https://${type}/v20.0/${id}/media?${mediaTypeParam}${isCarousel}${collaborators}${trialParams}&access_token=${accessToken}${caption}`,
+              { method: 'POST' }
+            )
+          ).json();
+          photoId = res.id;
+        } else {
+          const mediaType = isStory
+            ? `image_url=${m.path}&media_type=STORIES`
+            : `image_url=${m.path}`;
+
+          const res = await (
+            await this.fetch(
+              `https://${type}/v20.0/${id}/media?${mediaType}${isCarousel}${collaborators}${trialParams}&access_token=${accessToken}${caption}`,
+              { method: 'POST' }
+            )
+          ).json();
+          photoId = res.id;
+        }
 
         let status = 'IN_PROGRESS';
         while (status === 'IN_PROGRESS') {
@@ -598,10 +617,15 @@ export class InstagramProvider
               true
             )
           ).json();
-          await timer(30000);
           status = status_code;
+          if (status === 'IN_PROGRESS') {
+            await timer(30000);
+          }
         }
-        console.log('in progress3', id);
+
+        if (status !== 'FINISHED') {
+          throw new Error(`Instagram media processing failed with status: ${status}`);
+        }
 
         return photoId;
       }) || []
@@ -687,8 +711,14 @@ export class InstagramProvider
             true
           )
         ).json();
-        await timer(30000);
         status = status_code;
+        if (status === 'IN_PROGRESS') {
+          await timer(30000);
+        }
+      }
+
+      if (status !== 'FINISHED') {
+        throw new Error(`Instagram carousel processing failed with status: ${status}`);
       }
 
       const { id: mediaId, ...all4 } = await (

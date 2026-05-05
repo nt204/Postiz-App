@@ -88,6 +88,11 @@ export default async function handleR2Upload(
   return res.status(404).end();
 }
 
+export async function getPresignedDownloadUrl(key: string, expiresIn = 3600): Promise<string> {
+  const command = new GetObjectCommand({ Bucket: CLOUDFLARE_BUCKETNAME, Key: key });
+  return getSignedUrl(R2, command, { expiresIn });
+}
+
 export async function simpleUpload(
   data: Buffer,
   originalFilename: string,

@@ -119,9 +119,6 @@ const usePostActions = (onMutate?: () => void) => {
       const publishDate = dayjs
         .utc(date || data.posts[0].publishDate)
         .local();
-      const ExistingData = !isDuplicate
-        ? ExistingDataContextProvider
-        : Fragment;
       modal.openModal({
         id: 'add-edit-modal',
         closeOnClickOutside: false,
@@ -134,36 +131,40 @@ const usePostActions = (onMutate?: () => void) => {
           modal: 'w-[100%] max-w-[1400px] text-textColor',
         },
         children: (
-          <ExistingData value={data}>
-            <AddEditModal
-              {...(isDuplicate
-                ? {
-                    onlyValues: data.posts.map(
-                      ({ image, settings, content }: any) => ({
-                        image,
-                        settings,
-                        content,
-                      })
-                    ),
-                  }
-                : {})}
-              allIntegrations={integrations.map((p) => ({ ...p }))}
-              reopenModal={editPost(post)}
-              mutate={mutate}
-              integrations={
-                isDuplicate
-                  ? integrations
-                  : integrations
-                      .slice(0)
-                      .filter((f) => f.id === data.integration)
-                      .map((p) => ({
-                        ...p,
-                        picture: data.integrationPicture,
-                      }))
-              }
-              date={publishDate}
-            />
-          </ExistingData>
+          !isDuplicate ? (
+            <ExistingDataContextProvider value={data}>
+              <AddEditModal
+                allIntegrations={integrations.map((p) => ({ ...p }))}
+                reopenModal={editPost(post)}
+                mutate={mutate}
+                integrations={integrations
+                  .slice(0)
+                  .filter((f) => f.id === data.integration)
+                  .map((p) => ({
+                    ...p,
+                    picture: data.integrationPicture,
+                  }))}
+                date={publishDate}
+              />
+            </ExistingDataContextProvider>
+          ) : (
+            <Fragment>
+              <AddEditModal
+                onlyValues={data.posts.map(
+                  ({ image, settings, content }: any) => ({
+                    image,
+                    settings,
+                    content,
+                  })
+                )}
+                allIntegrations={integrations.map((p) => ({ ...p }))}
+                reopenModal={editPost(post)}
+                mutate={mutate}
+                integrations={integrations}
+                date={publishDate}
+              />
+            </Fragment>
+          )
         ),
         size: '80%',
         title: ``,

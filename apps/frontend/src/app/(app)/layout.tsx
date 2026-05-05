@@ -33,9 +33,6 @@ const jakartaSans = Plus_Jakarta_Sans({
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const cookieStore = await cookies();
   const language = cookieStore.get(cookieName)?.value || fallbackLng;
-  const Plausible = !!process.env.STRIPE_PUBLISHABLE_KEY
-    ? PlausibleProvider
-    : Fragment;
   return (
     <html suppressHydrationWarning>
       <head>
@@ -97,19 +94,33 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <HtmlComponent />
             <DubAnalytics />
             <FacebookComponent />
-            <Plausible
-              domain={!!process.env.IS_GENERAL ? 'postiz.com' : 'gitroom.com'}
-            >
-              <PHProvider
-                phkey={process.env.NEXT_PUBLIC_POSTHOG_KEY}
-                host={process.env.NEXT_PUBLIC_POSTHOG_HOST}
+            {!!process.env.STRIPE_PUBLISHABLE_KEY ? (
+              <PlausibleProvider
+                domain={!!process.env.IS_GENERAL ? 'postiz.com' : 'gitroom.com'}
               >
-                <LayoutContext>
-                  <UtmSaver />
-                  {children}
-                </LayoutContext>
-              </PHProvider>
-            </Plausible>
+                <PHProvider
+                  phkey={process.env.NEXT_PUBLIC_POSTHOG_KEY}
+                  host={process.env.NEXT_PUBLIC_POSTHOG_HOST}
+                >
+                  <LayoutContext>
+                    <UtmSaver />
+                    {children}
+                  </LayoutContext>
+                </PHProvider>
+              </PlausibleProvider>
+            ) : (
+              <Fragment>
+                <PHProvider
+                  phkey={process.env.NEXT_PUBLIC_POSTHOG_KEY}
+                  host={process.env.NEXT_PUBLIC_POSTHOG_HOST}
+                >
+                  <LayoutContext>
+                    <UtmSaver />
+                    {children}
+                  </LayoutContext>
+                </PHProvider>
+              </Fragment>
+            )}
           </SentryComponent>
         </VariableContextComponent>
       </body>
