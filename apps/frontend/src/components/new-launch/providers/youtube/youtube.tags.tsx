@@ -1,11 +1,11 @@
 'use client';
 
 import { FC, useCallback, useEffect, useMemo, useState } from 'react';
-import { useCustomProviderFunction } from '@gitroom/frontend/components/launches/helpers/use.custom.provider.function';
 import { useSettings } from '@gitroom/frontend/components/launches/helpers/use.values';
 import { ReactTags } from 'react-tag-autocomplete';
+import { useT } from '@gitroom/react/translation/get.transation.service.client';
 
-export const HashnodeTags: FC<{
+export const YoutubeTags: FC<{
   name: string;
   label: string;
   onChange: (event: {
@@ -16,10 +16,11 @@ export const HashnodeTags: FC<{
   }) => void;
 }> = (props) => {
   const { onChange, name, label } = props;
-  const customFunc = useCustomProviderFunction();
-  const [tags, setTags] = useState<any[]>([]);
-  const { getValues, formState: form } = useSettings();
+  const { getValues } = useSettings();
   const [tagValue, setTagValue] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<string>('');
+  const t = useT();
+
   const onDelete = useCallback(
     (tagIndex: number) => {
       const modify = tagValue.filter((_, i) => i !== tagIndex);
@@ -35,7 +36,7 @@ export const HashnodeTags: FC<{
   );
   const onAddition = useCallback(
     (newTag: any) => {
-      if (tagValue.length >= 4) {
+      if (tagValue.length >= 3) {
         return;
       }
       const modify = [...tagValue, newTag];
@@ -50,30 +51,31 @@ export const HashnodeTags: FC<{
     [tagValue]
   );
   useEffect(() => {
-    customFunc.get('tags').then((data) => setTags(data));
-    const settings = getValues()[props.name] || [];
+    const settings = getValues()[props.name];
     if (settings) {
       setTagValue(settings);
     }
   }, []);
-  const err = useMemo(() => {
-    if (!form || !form.errors[props?.name!]) return;
-    return form?.errors?.[props?.name!]?.message! as string;
-  }, [form?.errors?.[props?.name!]?.message]);
-  if (!tags.length) {
-    return null;
-  }
-
+  const suggestionsArray = useMemo(() => {
+    return [
+      ...tagValue,
+      {
+        label: suggestions,
+        value: suggestions,
+      },
+    ].filter((f) => f.label);
+  }, [suggestions, tagValue]);
   return (
     <div>
       <div className={`text-[14px] mb-[6px]`}>{label}</div>
       <ReactTags
-        suggestions={tags || []}
-        selected={tagValue || []}
+        placeholderText={t('add_a_tag', 'Add a tag')}
+        suggestions={suggestionsArray}
+        selected={tagValue}
         onAdd={onAddition}
+        onInput={setSuggestions}
         onDelete={onDelete}
       />
-      <div className="text-red-400 text-[12px]">{err || <>&nbsp;</>}</div>
     </div>
   );
 };

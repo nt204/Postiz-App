@@ -309,6 +309,11 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
       responseType: 'stream',
     });
 
+    const isShort = settings.videoType === 'short';
+    const description = isShort
+      ? `${firstPost?.message || ''}\n#Shorts`.trim()
+      : firstPost?.message || '';
+
     const all: GaxiosResponse<Schema$Video> = await this.runInConcurrent(
       async () =>
         youtubeClient.videos.insert({
@@ -317,7 +322,7 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
           requestBody: {
             snippet: {
               title: settings.title,
-              description: firstPost?.message,
+              description,
               ...(settings?.tags?.length
                 ? { tags: settings.tags.map((p) => p.label) }
                 : {}),

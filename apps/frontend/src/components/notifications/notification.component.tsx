@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { useClickAway } from '@uidotdev/usehooks';
 import ReactLoading from '@gitroom/frontend/components/layout/loading';
 import { useT } from '@gitroom/react/translation/get.transation.service.client';
+import dayjs from 'dayjs';
 function replaceLinks(text: string) {
   const urlRegex =
     /(\bhttps?:\/\/[-A-Z0-9+&@#/%?=~_|!:,.;]*[-A-Z0-9+&@#/%=~_|])/gi;
@@ -29,13 +30,20 @@ export const ShowNotification: FC<{
   return (
     <div
       className={clsx(
-        `text-textColor px-[16px] py-[10px] border-b border-tableBorder last:border-b-0 transition-colors overflow-hidden text-ellipsis`,
+        `text-textColor px-[16px] py-[10px] border-b border-tableBorder last:border-b-0 transition-colors`,
         newNotification && 'font-bold bg-seventh animate-newMessages'
       )}
-      dangerouslySetInnerHTML={{
-        __html: replaceLinks(notification.content),
-      }}
-    />
+    >
+      <div
+        className="overflow-hidden text-ellipsis"
+        dangerouslySetInnerHTML={{
+          __html: replaceLinks(notification.content),
+        }}
+      />
+      <div className="text-[11px] text-inputText mt-[4px] font-normal">
+        {dayjs(notification.createdAt).format('DD/MM/YYYY HH:mm')}
+      </div>
+    </div>
   );
 };
 export const NotificationOpenComponent = () => {

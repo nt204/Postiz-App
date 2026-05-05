@@ -8,10 +8,21 @@ import {
 import { YoutubeSettingsDto } from '@gitroom/nestjs-libraries/dtos/posts/providers-settings/youtube.settings.dto';
 import { useSettings } from '@gitroom/frontend/components/launches/helpers/use.values';
 import { Input } from '@gitroom/react/form/input';
-import { MediumTags } from '@gitroom/frontend/components/new-launch/providers/medium/medium.tags';
+import { YoutubeTags } from '@gitroom/frontend/components/new-launch/providers/youtube/youtube.tags';
 import { MediaComponent } from '@gitroom/frontend/components/media/media.component';
 import { Select } from '@gitroom/react/form/select';
 import { YoutubePreview } from '@gitroom/frontend/components/new-launch/providers/youtube/youtube.preview';
+const videoType = [
+  {
+    label: 'Long Video',
+    value: 'video',
+  },
+  {
+    label: 'Short (< 60s)',
+    value: 'short',
+  },
+];
+
 const type = [
   {
     label: 'Public',
@@ -41,9 +52,21 @@ const YoutubeSettings: FC = () => {
   const { register, control } = useSettings();
   return (
     <div className="flex flex-col">
+      <Select
+        label="Video Type"
+        {...register('videoType', {
+          value: 'video',
+        })}
+      >
+        {videoType.map((t) => (
+          <option key={t.value} value={t.value}>
+            {t.label}
+          </option>
+        ))}
+      </Select>
       <Input label="Title" {...register('title')} maxLength={100} />
       <Select
-        label="Type"
+        label="Visibility"
         {...register('type', {
           value: 'public',
         })}
@@ -66,7 +89,7 @@ const YoutubeSettings: FC = () => {
           </option>
         ))}
       </Select>
-      <MediumTags label="Tags" {...register('tags')} />
+      <YoutubeTags label="Tags" {...register('tags')} />
       <div className="mt-[20px]">
         <MediaComponent
           type="image"

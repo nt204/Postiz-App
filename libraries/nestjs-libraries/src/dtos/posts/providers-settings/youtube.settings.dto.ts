@@ -23,6 +23,10 @@ export class YoutubeSettingsDto {
   @IsDefined()
   type: string;
 
+  @IsIn(['video', 'short'])
+  @IsOptional()
+  videoType: 'video' | 'short';
+
   @IsIn(['yes', 'no'])
   @IsOptional()
   selfDeclaredMadeForKids: 'no' | 'yes';

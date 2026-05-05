@@ -930,7 +930,6 @@ export class PostsService {
                 __type: integration.providerIdentifier as any,
                 title: '',
                 tags: [],
-                subreddit: [],
               },
               value: [
                 ...toPost.list.map((l) => ({
