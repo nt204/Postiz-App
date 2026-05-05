@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import 'multer';
 import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 import mime from 'mime-types';
@@ -76,6 +76,13 @@ class CloudflareStorage implements IUploadProvider {
     );
   }
 
+  private getFolderByMime(mime: string): string {
+    if (mime.startsWith('image/')) return 'images';
+    if (mime.startsWith('video/')) return 'videos';
+    if (mime.startsWith('audio/')) return 'audio';
+    return 'others';
+  }
+
   async uploadSimple(path: string) {
     if (!(await isSafePublicHttpsUrl(path))) {
       throw new Error('Unsafe URL');
@@ -92,10 +99,12 @@ class CloudflareStorage implements IUploadProvider {
     const extension = detected.ext;
     const safeContentType = detected.mime;
     const id = makeId(10);
+    const folder = this.getFolderByMime(safeContentType);
+    const key = `${folder}/${id}.${extension}`;
 
     const params = {
       Bucket: this._bucketName,
-      Key: `${id}.${extension}`,
+      Key: key,
       Body: body,
       ContentType: safeContentType,
       ChecksumMode: 'DISABLED',
@@ -104,7 +113,7 @@ class CloudflareStorage implements IUploadProvider {
     const command = new PutObjectCommand({ ...params });
     await this._client.send(command);
 
-    return `${this._uploadUrl}/${id}.${extension}`;
+    return `${this._uploadUrl}/${key}`;
   }
 
   async uploadFile(file: Express.Multer.File): Promise<any> {
@@ -116,12 +125,13 @@ class CloudflareStorage implements IUploadProvider {
       const id = makeId(10);
       const extension = detected.ext;
       const safeContentType = detected.mime;
+      const folder = this.getFolderByMime(safeContentType);
+      const key = `${folder}/${id}.${extension}`;
 
       // Create the PutObjectCommand to upload the file to Cloudflare R2
       const command = new PutObjectCommand({
         Bucket: this._bucketName,
-        ACL: 'public-read',
-        Key: `${id}.${extension}`,
+        Key: key,
         Body: file.buffer,
         ContentType: safeContentType,
       });
@@ -129,14 +139,14 @@ class CloudflareStorage implements IUploadProvider {
       await this._client.send(command);
 
       return {
-        filename: `${id}.${extension}`,
+        filename: key,
         mimetype: file.mimetype,
         size: file.size,
         buffer: file.buffer,
-        originalname: `${id}.${extension}`,
+        originalname: key,
         fieldname: 'file',
-        path: `${this._uploadUrl}/${id}.${extension}`,
-        destination: `${this._uploadUrl}/${id}.${extension}`,
+        path: `${this._uploadUrl}/${key}`,
+        destination: `${this._uploadUrl}/${key}`,
         encoding: '7bit',
         stream: file.buffer as any,
       };
@@ -146,14 +156,15 @@ class CloudflareStorage implements IUploadProvider {
     }
   }
 
-  // Implement the removeFile method from IUploadProvider
   async removeFile(filePath: string): Promise<void> {
-    // const fileName = filePath.split('/').pop(); // Extract the filename from the path
-    // const command = new DeleteObjectCommand({
-    //   Bucket: this._bucketName,
-    //   Key: fileName,
-    // });
-    // await this._client.send(command);
+    const key = filePath.startsWith(this._uploadUrl)
+      ? filePath.slice(this._uploadUrl.length + 1)
+      : filePath.split('/').pop()!;
+    const command = new DeleteObjectCommand({
+      Bucket: this._bucketName,
+      Key: key,
+    });
+    await this._client.send(command);
   }
 }
 

@@ -44,7 +44,9 @@ export const customFetch = (
             ?.split('=')[1];
 
     const fetchRequest = await fetch(params.baseUrl + url, {
-      ...(secured ? { credentials: 'include' } : {}),
+      // Always include credentials so local dev still works when the browser
+      // only has an HttpOnly auth cookie from a previous run.
+      credentials: 'include',
       ...(newRequestObject || options),
       headers: {
         ...(showorg

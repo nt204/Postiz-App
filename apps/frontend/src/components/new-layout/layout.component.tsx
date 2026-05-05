@@ -41,6 +41,7 @@ import { StreakComponent } from '@gitroom/frontend/components/layout/streak.comp
 import { PreConditionComponent } from '@gitroom/frontend/components/layout/pre-condition.component';
 import { AttachToFeedbackIcon } from '@gitroom/frontend/components/new-layout/sentry.feedback.component';
 import { FirstBillingComponent } from '@gitroom/frontend/components/billing/first.billing.component';
+import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 
 const jakartaSans = Plus_Jakarta_Sans({
   weight: ['600', '500', '700'],
@@ -58,7 +59,7 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
   const load = useCallback(async (path: string) => {
     return await (await fetch(path)).json();
   }, []);
-  const { data: user, mutate } = useSWR('/user/self', load, {
+  const { data: user, error, mutate } = useSWR('/user/self', load, {
     revalidateOnFocus: false,
     revalidateOnReconnect: false,
     revalidateIfStale: false,
@@ -66,7 +67,29 @@ export const LayoutComponent = ({ children }: { children: ReactNode }) => {
     refreshWhenHidden: false,
   });
 
-  if (!user) return null;
+  if (error) {
+    return (
+      <div className="min-h-screen min-w-screen bg-newBgColorInner text-newTextColor flex items-center justify-center p-[24px]">
+        <div className="max-w-[680px] text-center">
+          <div className="text-[20px] font-[700] mb-[12px]">
+            Could not load your session
+          </div>
+          <div className="text-[14px] text-textItemBlur">
+            The frontend could not fetch `/user/self` from the backend.
+            Refresh once. If it still fails, sign out and sign in again.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen min-w-screen bg-newBgColorInner text-newTextColor flex items-center justify-center p-[24px]">
+        <LoadingComponent />
+      </div>
+    );
+  }
 
   return (
     <ContextWrapper user={user}>

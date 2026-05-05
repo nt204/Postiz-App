@@ -313,8 +313,14 @@ export class IntegrationService {
       org,
       String(getIntegrationInformation.id)
     );
+    const uploadedPicture = getIntegrationInformation.picture
+      ? getIntegrationInformation.picture.indexOf('imagedelivery.net') > -1
+        ? getIntegrationInformation.picture
+        : await this.storage.uploadSimple(getIntegrationInformation.picture)
+      : undefined;
+
     await this._integrationRepository.updateIntegration(id, {
-      picture: getIntegrationInformation.picture,
+      picture: uploadedPicture,
       internalId: String(getIntegrationInformation.id),
       organizationId: org,
       name: getIntegrationInformation.name,

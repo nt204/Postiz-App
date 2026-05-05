@@ -21,6 +21,7 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     'business_management',
     'pages_manage_posts',
     'pages_read_engagement',
+    'pages_manage_engagement',
   ];
   override maxConcurrentJob = 100; // Facebook has reasonable rate limits
   editor = 'normal' as const;

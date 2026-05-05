@@ -102,16 +102,14 @@ export class LocalStorage implements IUploadProvider {
     }
   }
 
-  async removeFile(filePath: string): Promise<void> {
-    // Logic to remove the file from the filesystem goes here
-    return new Promise((resolve, reject) => {
-      unlink(filePath, (err) => {
-        if (err) {
-          reject(err);
-        } else {
-          resolve();
-        }
-      });
+  async removeFile(fileUrl: string): Promise<void> {
+    const prefix = (process.env.FRONTEND_URL || '') + '/uploads';
+    const relativePath = fileUrl.startsWith(prefix)
+      ? fileUrl.slice(prefix.length)
+      : '/' + fileUrl.split('/uploads/').pop()!;
+    const localPath = this.uploadDirectory + relativePath;
+    return new Promise((resolve) => {
+      unlink(localPath, () => resolve());
     });
   }
 }

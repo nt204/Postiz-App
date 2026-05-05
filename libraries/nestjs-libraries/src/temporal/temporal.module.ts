@@ -1,5 +1,21 @@
+import * as nodePath from 'path';
 import { TemporalModule } from 'nestjs-temporal-core';
 import { socialIntegrationList } from '@gitroom/nestjs-libraries/integrations/integration.manager';
+
+const makeWebpackConfigHook = (workflowsPath: string) => {
+  // workflowsPath resolves to .../dist/apps/orchestrator/src/workflows/index.js
+  // going up 4 dirs from workflows dir reaches the dist root
+  const distRoot = nodePath.resolve(nodePath.dirname(workflowsPath), '../../../../');
+  return (config: any) => {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      '@gitroom/orchestrator': nodePath.join(distRoot, 'apps/orchestrator/src'),
+      '@gitroom/nestjs-libraries': nodePath.join(distRoot, 'libraries/nestjs-libraries/src'),
+    };
+    return config;
+  };
+};
 
 export const getTemporalModule = (
   isWorkers: boolean,
@@ -28,14 +44,17 @@ export const getTemporalModule = (
               workflowsPath: path!,
               activityClasses: activityClasses!,
               autoStart: true,
-              ...(integration.maxConcurrentJob
-                ? {
-                    workerOptions: {
+              workerOptions: {
+                bundlerOptions: {
+                  webpackConfigHook: makeWebpackConfigHook(path!),
+                },
+                ...(integration.maxConcurrentJob
+                  ? {
                       maxConcurrentActivityTaskExecutions:
                         integration.maxConcurrentJob,
-                    },
-                  }
-                : {}),
+                    }
+                  : {}),
+              },
             })),
         }
       : {}),

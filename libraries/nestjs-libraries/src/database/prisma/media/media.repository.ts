@@ -6,6 +6,10 @@ import { SaveMediaInformationDto } from '@gitroom/nestjs-libraries/dtos/media/sa
 export class MediaRepository {
   constructor(private _media: PrismaRepository<'media'>) {}
 
+  private get _folder() {
+    return (this._media.model as any).mediaFolder;
+  }
+
   saveFile(org: string, fileName: string, filePath: string, originalName?: string) {
     return this._media.model.media.create({
       data: {
@@ -72,36 +76,43 @@ export class MediaRepository {
     });
   }
 
-  async getMedia(org: string, page: number, search?: string) {
+  async getMedia(
+    org: string,
+    page: number,
+    search?: string,
+    folderId?: string,
+    type?: string
+  ) {
     const pageNum = (page || 1) - 1;
     const trimmedSearch = search?.trim();
-    const searchFilter = trimmedSearch
-      ? {
-          originalName: {
-            contains: trimmedSearch,
-            mode: 'insensitive' as const,
-          },
-        }
-      : {};
-    const query = {
-      where: {
-        organization: {
-          id: org,
-        },
-        deletedAt: null,
-        ...searchFilter,
-      },
+
+    const where: any = {
+      organizationId: org,
+      deletedAt: null,
     };
-    const pages = Math.ceil((await this._media.model.media.count(query)) / 18);
+
+    if (trimmedSearch) {
+      where.originalName = { contains: trimmedSearch, mode: 'insensitive' };
+    }
+
+    if (folderId === 'none') {
+      where.folderId = null;
+    } else if (folderId) {
+      where.folderId = folderId;
+    }
+
+    if (type === 'image') {
+      where.NOT = { path: { contains: 'mp4' } };
+    } else if (type === 'video') {
+      where.path = { contains: 'mp4' };
+    }
+
+    const pages = Math.ceil(
+      (await this._media.model.media.count({ where })) / 18
+    );
     const results = await this._media.model.media.findMany({
-      where: {
-        organizationId: org,
-        deletedAt: null,
-        ...searchFilter,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      where,
+      orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         name: true,
@@ -110,14 +121,45 @@ export class MediaRepository {
         thumbnail: true,
         alt: true,
         thumbnailTimestamp: true,
+        folderId: true,
       },
       skip: pageNum * 18,
       take: 18,
     });
 
-    return {
-      pages,
-      results,
-    };
+    return { pages, results };
+  }
+
+  getFolders(org: string) {
+    return this._folder.findMany({
+      where: { organizationId: org },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+  }
+
+  createFolder(org: string, name: string) {
+    return this._folder.create({
+      data: { name, organizationId: org },
+      select: { id: true, name: true },
+    });
+  }
+
+  async deleteFolder(org: string, id: string) {
+    await this._media.model.media.updateMany({
+      where: { folderId: id, organizationId: org },
+      data: { folderId: null },
+    });
+    return this._folder.delete({
+      where: { id, organizationId: org },
+    });
+  }
+
+  moveToFolder(org: string, mediaId: string, folderId: string | null) {
+    return this._media.model.media.update({
+      where: { id: mediaId, organizationId: org },
+      data: { folderId: folderId || null },
+      select: { id: true, folderId: true },
+    });
   }
 }

@@ -35,6 +35,13 @@ function normalizeExtension(filename: string): string | null {
   return ALLOWED_EXT_TO_MIME[ext] ? ext : null;
 }
 
+function getFolderByMime(mime: string): string {
+  if (mime.startsWith('image/')) return 'images';
+  if (mime.startsWith('video/')) return 'videos';
+  if (mime.startsWith('audio/')) return 'audio';
+  return 'others';
+}
+
 const {
   CLOUDFLARE_ACCOUNT_ID,
   CLOUDFLARE_ACCESS_KEY,
@@ -50,6 +57,8 @@ const R2 = new S3Client({
     accessKeyId: CLOUDFLARE_ACCESS_KEY!,
     secretAccessKey: CLOUDFLARE_SECRET_ACCESS_KEY!,
   },
+  requestChecksumCalculation: 'WHEN_REQUIRED',
+  responseChecksumValidation: 'WHEN_REQUIRED',
 });
 
 // Function to generate a random string
@@ -90,7 +99,8 @@ export async function simpleUpload(
   }
   const fileExtension = `.${detected.ext}`;
   const safeContentType = detected.mime;
-  const randomFilename = generateRandomString() + fileExtension;
+  const folder = getFolderByMime(safeContentType);
+  const randomFilename = `${folder}/${generateRandomString()}${fileExtension}`;
 
   const params = {
     Bucket: CLOUDFLARE_BUCKETNAME,
@@ -112,12 +122,13 @@ export async function createMultipartUpload(req: Request, res: Response) {
     return res.status(400).json({ message: 'Unsupported file type.' });
   }
   const safeContentType = ALLOWED_EXT_TO_MIME[safeExt];
-  const randomFilename = generateRandomString() + safeExt;
+  const folder = getFolderByMime(safeContentType);
+  const randomFilename = `${folder}/${generateRandomString()}${safeExt}`;
 
   try {
     const params = {
       Bucket: CLOUDFLARE_BUCKETNAME,
-      Key: `${randomFilename}`,
+      Key: randomFilename,
       ContentType: safeContentType,
       Metadata: {
         'x-amz-meta-file-hash': fileHash,
@@ -231,10 +242,7 @@ export async function completeMultipartUpload(req: Request, res: Response) {
         .json({ message: 'File contents do not match declared type.' });
     }
 
-    response.Location =
-      process.env.CLOUDFLARE_BUCKET_URL +
-      '/' +
-      response?.Location?.split('/').at(-1);
+    response.Location = `${process.env.CLOUDFLARE_BUCKET_URL}/${key}`;
     return response;
   } catch (err) {
     console.log('Error', err);

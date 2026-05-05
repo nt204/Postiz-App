@@ -12,6 +12,7 @@
     "manualRestart": true,
     "tsConfigPath": "./tsconfig.build.json",
     "webpack": false,
+    "builder": "swc",
     "deleteOutDir": true,
     "assets": [],
     "watchAssets": false,

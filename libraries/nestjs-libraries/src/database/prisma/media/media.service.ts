@@ -25,6 +25,14 @@ export class MediaService {
   ) {}
 
   async deleteMedia(org: string, id: string) {
+    const media = await this._mediaRepository.getMediaById(id);
+    if (media?.path) {
+      try {
+        await this.storage.removeFile(media.path);
+      } catch {
+        // storage deletion failure should not block DB soft-delete
+      }
+    }
     return this._mediaRepository.deleteMedia(org, id);
   }
 
@@ -56,8 +64,24 @@ export class MediaService {
     return this._mediaRepository.saveFile(org, fileName, filePath, originalName);
   }
 
-  getMedia(org: string, page: number, search?: string) {
-    return this._mediaRepository.getMedia(org, page, search);
+  getMedia(org: string, page: number, search?: string, folderId?: string, type?: string) {
+    return this._mediaRepository.getMedia(org, page, search, folderId, type);
+  }
+
+  getFolders(org: string) {
+    return this._mediaRepository.getFolders(org);
+  }
+
+  createFolder(org: string, name: string) {
+    return this._mediaRepository.createFolder(org, name);
+  }
+
+  deleteFolder(org: string, id: string) {
+    return this._mediaRepository.deleteFolder(org, id);
+  }
+
+  moveToFolder(org: string, mediaId: string, folderId: string | null) {
+    return this._mediaRepository.moveToFolder(org, mediaId, folderId);
   }
 
   saveMediaInformation(org: string, data: SaveMediaInformationDto) {

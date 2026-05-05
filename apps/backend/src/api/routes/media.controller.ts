@@ -151,6 +151,14 @@ export class MediaController {
     );
   }
 
+  @Post('/folders')
+  createFolder(
+    @GetOrgFromRequest() org: Organization,
+    @Body('name') name: string
+  ) {
+    return this._mediaService.createFolder(org.id, name);
+  }
+
   @Post('/:endpoint')
   async uploadFile(
     @GetOrgFromRequest() org: Organization,
@@ -164,27 +172,55 @@ export class MediaController {
     }
 
     // @ts-ignore
-    const name = upload.Location.split('/').pop();
+    const location: string = upload.Location;
+    const bucketUrl = process.env.CLOUDFLARE_BUCKET_URL!;
+    const name = location.startsWith(bucketUrl)
+      ? location.slice(bucketUrl.length + 1)
+      : location.split('/').pop();
     const originalName = req.body?.file?.name;
 
     const saveFile = await this._mediaService.saveFile(
       org.id,
       name,
-      // @ts-ignore
-      upload.Location,
+      location,
       originalName || undefined
     );
 
-    res.status(200).json({ ...upload, saved: saveFile });
+    // Uppy requires lowercase "location" field to mark upload as successful
+    res.status(200).json({ location, Location: location, saved: saveFile });
+  }
+
+  @Get('/folders')
+  getFolders(@GetOrgFromRequest() org: Organization) {
+    return this._mediaService.getFolders(org.id);
+  }
+
+  @Delete('/folders/:id')
+  deleteFolder(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    return this._mediaService.deleteFolder(org.id, id);
+  }
+
+  @Post('/:id/folder')
+  moveToFolder(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string,
+    @Body('folderId') folderId: string | null
+  ) {
+    return this._mediaService.moveToFolder(org.id, id, folderId);
   }
 
   @Get('/')
   getMedia(
     @GetOrgFromRequest() org: Organization,
     @Query('page') page: number,
-    @Query('search') search?: string
+    @Query('search') search?: string,
+    @Query('folderId') folderId?: string,
+    @Query('type') type?: string
   ) {
-    return this._mediaService.getMedia(org.id, page, search);
+    return this._mediaService.getMedia(org.id, page, search, folderId, type);
   }
 
   @Get('/video-options')

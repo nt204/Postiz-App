@@ -42,54 +42,10 @@ export const getUppyUploadPlugin = (
       };
     case 'cloudflare':
       return {
-        plugin: AwsS3Multipart,
+        plugin: XHRUpload,
         options: {
-          shouldUseMultipart: (file: any) => true,
-          endpoint: '',
-          createMultipartUpload: async (file: any) => {
-            let fileHash = '';
-            const contentType = file.type;
-
-            // Skip hash calculation for files larger than 100MB to avoid "Invalid array length" error
-            if (file.size <= 100 * 1024 * 1024) {
-              try {
-                const arrayBuffer = await new Response(file.data).arrayBuffer();
-                fileHash = sha256(Buffer.from(arrayBuffer));
-              } catch (error) {
-                console.warn(
-                  'Failed to calculate file hash, proceeding without hash:',
-                  error
-                );
-                fileHash = '';
-              }
-            }
-
-            return fetchUploadApiEndpoint(fetch, 'create-multipart-upload', {
-              file,
-              fileHash,
-              contentType,
-            });
-          },
-          listParts: (file: any, props: any) =>
-            fetchUploadApiEndpoint(fetch, 'list-parts', {
-              file,
-              ...props,
-            }),
-          signPart: (file: any, props: any) =>
-            fetchUploadApiEndpoint(fetch, 'sign-part', {
-              file,
-              ...props,
-            }),
-          abortMultipartUpload: (file: any, props: any) =>
-            fetchUploadApiEndpoint(fetch, 'abort-multipart-upload', {
-              file,
-              ...props,
-            }),
-          completeMultipartUpload: (file: any, props: any) =>
-            fetchUploadApiEndpoint(fetch, 'complete-multipart-upload', {
-              file,
-              ...props,
-            }),
+          endpoint: `${backendUrl}/media/upload-server`,
+          withCredentials: true,
         },
       };
     case 'local':

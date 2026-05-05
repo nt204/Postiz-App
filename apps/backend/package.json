@@ -4,8 +4,8 @@
   "description": "",
   "scripts": {
     "dev": "dotenv -e ../../.env -- nest start --watch",
-    "build": "cross-env NODE_ENV=production nest build",
-    "start": "dotenv -e ../../.env -- node ./dist/apps/backend/src/main.js",
+    "build": "cross-env NODE_ENV=production tsc -p tsconfig.build.json",
+    "start": "dotenv -e ../../.env -- node -r ../../register-dist-paths.js ./dist/apps/backend/src/main.js",
     "pm2": "pm2 start pnpm --name backend -- start"
   },
   "keywords": [],
