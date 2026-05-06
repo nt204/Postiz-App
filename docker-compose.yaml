@@ -19,7 +19,8 @@ services:
       # === Storage Settings
       STORAGE_PROVIDER: 'local'
       UPLOAD_DIRECTORY: '/uploads'
-      NEXT_PUBLIC_UPLOAD_DIRECTORY: '/uploads'
+      # FIX: tên đúng là NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY (frontend đọc biến này tại layout.tsx)
+      NEXT_PUBLIC_UPLOAD_STATIC_DIRECTORY: 'uploads'
 
       # === Cloudflare (R2) Settings — uncomment to use instead of local
       # STORAGE_PROVIDER: 'cloudflare'
@@ -56,6 +57,14 @@ services:
       # POSTIZ_OAUTH_CLIENT_ID: ''
       # POSTIZ_OAUTH_CLIENT_SECRET: ''
 
+      # === Public App Info (required for TikTok review — Terms, Privacy, Support pages)
+      PUBLIC_APP_NAME: 'Postiz'
+      PUBLIC_COMPANY_NAME: 'Your Company LLC'
+      PUBLIC_COMPANY_ADDRESS: '123 Example Street, City, Country'
+      PUBLIC_SUPPORT_EMAIL: 'support@your-domain.com'
+      PUBLIC_LEGAL_UPDATED_AT: '2026-05-06'
+      # PUBLIC_SUPPORT_URL: 'https://your-domain.com/support-center'
+
       # === Misc Settings
       OPENAI_API_KEY: ''
       NEXT_PUBLIC_DISCORD_SUPPORT: ''
@@ -77,6 +86,12 @@ services:
       - postiz-uploads:/uploads/
     ports:
       - "4007:5000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
       - postiz-network
       - temporal-network
@@ -136,8 +151,9 @@ services:
 
   temporal:
     container_name: temporal
-    ports:
-      - '7233:7233'
+    # SECURITY FIX: expose nội bộ thay vì publish ra host (7233 không cần public ra internet)
+    expose:
+      - 7233
     image: temporalio/auto-setup:1.28.1
     depends_on:
       - temporal-postgresql

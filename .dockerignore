@@ -1,23 +1,43 @@
-# We want the docker builds to be clean, and as fast as possible. Don't send
-# any half-built stuff in the build context as a pre-caution (also saves copying
-# 180k files in node_modules that isn't used!).
+# === node_modules — không copy vào build context, tiết kiệm hàng trăm MB
 **/node_modules
-node_modules/*
-node_modules
-docker-data/*
-dist
+
+# === build artifacts — sẽ được build lại trong container
+**/dist
+**/.next
 .nx
-/apps/frontend/.next
-/apps/backend/dist
-/apps/workers/dist
-/apps/cron/dist
-/apps/commands/dist
-.devcontainer
+
+# === secrets — KHÔNG BAO GIỜ copy vào image
+.env
+.env.*
+!.env.example
+
+# === git
+.git
 **/.git
+.github
+
+# === dev tools & editor
+.devcontainer
+**/.vscode
+**/*.vscode
+**/*.idea
+
+# === logs
+**/npm-debug.log
+**/yarn-error.log
+**/pnpm-debug.log
+
+# === test & coverage
+**/coverage
+**/__tests__
+**/*.test.ts
+**/*.spec.ts
+
+# === docs & misc
 **/*.md
 **/LICENSE
-**/npm-debug.log
-**/*.vscode
-.git
-.github
 reports
+docker-data
+
+# === local upload data (được mount qua Docker volume)
+uploads

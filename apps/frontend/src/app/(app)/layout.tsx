@@ -79,6 +79,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           disableXAnalytics={!!process.env.DISABLE_X_ANALYTICS}
           sentryDsn={process.env.NEXT_PUBLIC_SENTRY_DSN!}
           extensionId={process.env.EXTENSION_ID || ''}
+          publicAppName={process.env.PUBLIC_APP_NAME || 'Postiz'}
+          publicCompanyName={process.env.PUBLIC_COMPANY_NAME || ''}
+          publicCompanyAddress={process.env.PUBLIC_COMPANY_ADDRESS || ''}
+          publicSupportEmail={process.env.PUBLIC_SUPPORT_EMAIL || ''}
+          publicLegalUpdatedAt={process.env.PUBLIC_LEGAL_UPDATED_AT || ''}
+          publicSupportUrl={process.env.PUBLIC_SUPPORT_URL || ''}
           language={language}
           transloadit={
             process.env.TRANSLOADIT_AUTH && process.env.TRANSLOADIT_TEMPLATE

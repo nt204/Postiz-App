@@ -12,7 +12,21 @@ import { TrackService } from '@gitroom/nestjs-libraries/track/track.service';
 import { UsersService } from '@gitroom/nestjs-libraries/database/prisma/users/users.service';
 import { TrackEnum } from '@gitroom/nestjs-libraries/user/track.enum';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_nothing');
+// Lazy init: tránh boot với key giả 'sk_nothing' — Stripe sẽ fail muộn và khó debug
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!_stripe) {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) {
+      throw new Error(
+        'STRIPE_SECRET_KEY is not set — Stripe/billing features are disabled. ' +
+        'Set the env var or leave Stripe config empty to disable billing.'
+      );
+    }
+    _stripe = new Stripe(key);
+  }
+  return _stripe;
+}
 
 @Injectable()
 export class StripeService {
@@ -23,7 +37,7 @@ export class StripeService {
     private _trackService: TrackService
   ) {}
   validateRequest(rawBody: Buffer, signature: string, endpointSecret: string) {
-    return stripe.webhooks.constructEvent(rawBody, signature, endpointSecret);
+    return getStripe().webhooks.constructEvent(rawBody, signature, endpointSecret);
   }
 
   async checkValidCard(
@@ -46,7 +60,7 @@ export class StripeService {
 
     console.log('Checking card');
 
-    const paymentMethods = await stripe.paymentMethods.list({
+    const paymentMethods = await getStripe().paymentMethods.list({
       customer: event.data.object.customer as string,
     });
 
@@ -66,7 +80,7 @@ export class StripeService {
     }
 
     try {
-      const paymentIntent = await stripe.paymentIntents.create({
+      const paymentIntent = await getStripe().paymentIntents.create({
         amount: 100,
         currency: 'usd',
         payment_method: latestMethod.id,
@@ -81,17 +95,17 @@ export class StripeService {
 
       if (paymentIntent.status !== 'requires_capture') {
         console.error('Cant charge');
-        await stripe.paymentMethods.detach(paymentMethods.data[0].id);
-        await stripe.subscriptions.cancel(event.data.object.id as string);
+        await getStripe().paymentMethods.detach(paymentMethods.data[0].id);
+        await getStripe().subscriptions.cancel(event.data.object.id as string);
         return false;
       }
 
-      await stripe.paymentIntents.cancel(paymentIntent.id as string);
+      await getStripe().paymentIntents.cancel(paymentIntent.id as string);
       return true;
     } catch (err) {
       try {
-        await stripe.paymentMethods.detach(paymentMethods.data[0].id);
-        await stripe.subscriptions.cancel(event.data.object.id as string);
+        await getStripe().paymentMethods.detach(paymentMethods.data[0].id);
+        await getStripe().subscriptions.cancel(event.data.object.id as string);
       } catch (err) {
         /*dont do anything*/
       }
@@ -168,7 +182,7 @@ export class StripeService {
     }
 
     const users = await this._organizationService.getTeam(organization.id);
-    const customer = await stripe.customers.create({
+    const customer = await getStripe().customers.create({
       email: users.users[0].user.email.indexOf('@') > -1 ? users.users[0].user.email : `${users.users[0].user.email}@postiz.com`,
       name: organization.name,
     });
@@ -180,7 +194,7 @@ export class StripeService {
   }
 
   async getPackages() {
-    const products = await stripe.prices.list({
+    const products = await getStripe().prices.list({
       active: true,
       expand: ['data.tiers', 'data.product'],
       lookup_keys: [
@@ -207,7 +221,7 @@ export class StripeService {
     const org = await this._organizationService.getOrgById(organizationId);
     const customer = await this.createOrGetCustomer(org!);
     const priceData = pricing[body.billing];
-    const allProducts = await stripe.products.list({
+    const allProducts = await getStripe().products.list({
       active: true,
       expand: ['data.prices'],
     });
@@ -216,12 +230,12 @@ export class StripeService {
       allProducts.data.find(
         (product) => product.name.toUpperCase() === body.billing.toUpperCase()
       ) ||
-      (await stripe.products.create({
+      (await getStripe().products.create({
         active: true,
         name: body.billing,
       }));
 
-    const pricesList = await stripe.prices.list({
+    const pricesList = await getStripe().prices.list({
       active: true,
       product: findProduct!.id,
     });
@@ -238,7 +252,7 @@ export class StripeService {
               : priceData.year_price) *
               100
       ) ||
-      (await stripe.prices.create({
+      (await getStripe().prices.create({
         active: true,
         product: findProduct!.id,
         currency: 'usd',
@@ -256,7 +270,7 @@ export class StripeService {
 
     const currentUserSubscription = {
       data: (
-        await stripe.subscriptions.list({
+        await getStripe().subscriptions.list({
           customer,
           status: 'all',
         })
@@ -264,7 +278,7 @@ export class StripeService {
     };
 
     try {
-      const price = await stripe.invoices.createPreview({
+      const price = await getStripe().invoices.createPreview({
         customer,
         subscription: currentUserSubscription?.data?.[0]?.id,
         subscription_details: {
@@ -292,7 +306,7 @@ export class StripeService {
   async getCustomerSubscriptions(organizationId: string) {
     const org = (await this._organizationService.getOrgById(organizationId))!;
     const customer = org.paymentId;
-    return stripe.subscriptions.list({
+    return getStripe().subscriptions.list({
       customer: customer!,
       status: 'all',
     });
@@ -304,7 +318,7 @@ export class StripeService {
     const customer = await this.createOrGetCustomer(org!);
     const currentUserSubscription = {
       data: (
-        await stripe.subscriptions.list({
+        await getStripe().subscriptions.list({
           customer,
           status: 'all',
           expand: ['data.latest_invoice'],
@@ -316,7 +330,7 @@ export class StripeService {
 
     // If the user is toggling back (un-cancelling), just remove the cancel
     if (sub.cancel_at_period_end) {
-      const { cancel_at } = await stripe.subscriptions.update(sub.id, {
+      const { cancel_at } = await getStripe().subscriptions.update(sub.id, {
         cancel_at_period_end: false,
         metadata: { service: 'gitroom', id },
       });
@@ -336,7 +350,7 @@ export class StripeService {
 
     if (hasFailedPayment) {
       // Payment already failed — cancel immediately and delete subscription
-      await stripe.subscriptions.cancel(sub.id);
+      await getStripe().subscriptions.cancel(sub.id);
       await this._subscriptionService.deleteSubscription(customer);
 
       return {
@@ -346,7 +360,7 @@ export class StripeService {
     }
 
     // Payment succeeded — cancel at end of billing period
-    const { cancel_at } = await stripe.subscriptions.update(sub.id, {
+    const { cancel_at } = await getStripe().subscriptions.update(sub.id, {
       cancel_at_period_end: true,
       metadata: { service: 'gitroom', id },
     });
@@ -363,7 +377,7 @@ export class StripeService {
   }
 
   async createBillingPortalLink(customer: string) {
-    return stripe.billingPortal.sessions.create({
+    return getStripe().billingPortal.sessions.create({
       customer,
       return_url: process.env['FRONTEND_URL'] + '/billing',
     });
@@ -376,7 +390,7 @@ export class StripeService {
    */
   private async findAutoApplyPromotionCode(): Promise<string | null> {
     try {
-      const promotionCodes = await stripe.promotionCodes.list({
+      const promotionCodes = await getStripe().promotionCodes.list({
         active: true,
         limit: 100,
       });
@@ -433,7 +447,7 @@ export class StripeService {
     const user = await this._userService.getUserById(userId);
 
     try {
-      await stripe.customers.update(customer, {
+      await getStripe().customers.update(customer, {
         email: user.email.indexOf('@') > -1 ? user.email : `${user.email}@postiz.com`,
         ...(body.dub
           ? {
@@ -453,7 +467,7 @@ export class StripeService {
     }
 
     const isUtm = body.utm ? `&utm_source=${body.utm}` : '';
-    const { client_secret } = await stripe.checkout.sessions.create({
+    const { client_secret } = await getStripe().checkout.sessions.create({
       ui_mode: 'custom',
       customer,
       return_url:
@@ -506,7 +520,7 @@ export class StripeService {
     const isUtm = body.utm ? `&utm_source=${body.utm}` : '';
 
     if (body.dub) {
-      await stripe.customers.update(customer, {
+      await getStripe().customers.update(customer, {
         metadata: {
           dubCustomerExternalId: userId,
           dubClickId: body.dub,
@@ -514,7 +528,7 @@ export class StripeService {
       });
     }
 
-    const { url } = await stripe.checkout.sessions.create({
+    const { url } = await getStripe().checkout.sessions.create({
       customer,
       cancel_url: process.env['FRONTEND_URL'] + `/billing?cancel=true${isUtm}`,
       success_url:
@@ -545,12 +559,12 @@ export class StripeService {
 
   async finishTrial(paymentId: string) {
     const list = (
-      await stripe.subscriptions.list({
+      await getStripe().subscriptions.list({
         customer: paymentId,
       })
     ).data.filter((f) => f.status === 'trialing');
 
-    return stripe.subscriptions.update(list[0].id, {
+    return getStripe().subscriptions.update(list[0].id, {
       trial_end: 'now',
     });
   }
@@ -560,7 +574,7 @@ export class StripeService {
       return false;
     }
 
-    const list = await stripe.charges.list({
+    const list = await getStripe().charges.list({
       customer,
       limit: 1,
     });
@@ -571,7 +585,7 @@ export class StripeService {
 
     const currentUserSubscription = {
       data: (
-        await stripe.subscriptions.list({
+        await getStripe().subscriptions.list({
           customer,
           status: 'all',
           expand: ['data.discounts'],
@@ -602,7 +616,7 @@ export class StripeService {
 
     const currentUserSubscription = {
       data: (
-        await stripe.subscriptions.list({
+        await getStripe().subscriptions.list({
           customer,
           status: 'all',
           expand: ['data.discounts'],
@@ -610,7 +624,7 @@ export class StripeService {
       ).data.find((f) => f.status === 'active' || f.status === 'trialing'),
     };
 
-    await stripe.subscriptions.update(currentUserSubscription.data.id, {
+    await getStripe().subscriptions.update(currentUserSubscription.data.id, {
       discounts: [
         {
           coupon: process.env.STRIPE_DISCOUNT_ID!,
@@ -660,7 +674,7 @@ export class StripeService {
     const priceData = pricing[body.billing];
     const org = await this._organizationService.getOrgById(organizationId);
     const customer = await this.createOrGetCustomer(org!);
-    const allProducts = await stripe.products.list({
+    const allProducts = await getStripe().products.list({
       active: true,
       expand: ['data.prices'],
     });
@@ -669,12 +683,12 @@ export class StripeService {
       allProducts.data.find(
         (product) => product.name.toUpperCase() === body.billing.toUpperCase()
       ) ||
-      (await stripe.products.create({
+      (await getStripe().products.create({
         active: true,
         name: body.billing,
       }));
 
-    const pricesList = await stripe.prices.list({
+    const pricesList = await getStripe().prices.list({
       active: true,
       product: findProduct!.id,
     });
@@ -690,7 +704,7 @@ export class StripeService {
               : priceData.year_price) *
               100
       ) ||
-      (await stripe.prices.create({
+      (await getStripe().prices.create({
         active: true,
         product: findProduct!.id,
         currency: 'usd',
@@ -726,7 +740,7 @@ export class StripeService {
     const priceData = pricing[body.billing];
     const org = await this._organizationService.getOrgById(organizationId);
     const customer = await this.createOrGetCustomer(org!);
-    const allProducts = await stripe.products.list({
+    const allProducts = await getStripe().products.list({
       active: true,
       expand: ['data.prices'],
     });
@@ -735,12 +749,12 @@ export class StripeService {
       allProducts.data.find(
         (product) => product.name.toUpperCase() === body.billing.toUpperCase()
       ) ||
-      (await stripe.products.create({
+      (await getStripe().products.create({
         active: true,
         name: body.billing,
       }));
 
-    const pricesList = await stripe.prices.list({
+    const pricesList = await getStripe().prices.list({
       active: true,
       product: findProduct!.id,
     });
@@ -756,7 +770,7 @@ export class StripeService {
               : priceData.year_price) *
               100
       ) ||
-      (await stripe.prices.create({
+      (await getStripe().prices.create({
         active: true,
         product: findProduct!.id,
         currency: 'usd',
@@ -787,7 +801,7 @@ export class StripeService {
 
     const currentUserSubscription = {
       data: (
-        await stripe.subscriptions.list({
+        await getStripe().subscriptions.list({
           customer,
           status: 'all',
         })
@@ -795,7 +809,7 @@ export class StripeService {
     };
 
     try {
-      await stripe.subscriptions.update(currentUserSubscription.data[0].id, {
+      await getStripe().subscriptions.update(currentUserSubscription.data[0].id, {
         cancel_at_period_end: false,
         metadata: {
           service: 'gitroom',
@@ -830,7 +844,7 @@ export class StripeService {
     if (!subscriptionId) {
       return { ok: true };
     }
-    const subscription = await stripe.subscriptions.retrieve(
+    const subscription = await getStripe().subscriptions.retrieve(
       typeof subscriptionId === 'string' ? subscriptionId : subscriptionId.id
     );
 
@@ -851,7 +865,7 @@ export class StripeService {
       return [];
     }
 
-    const charges = await stripe.charges.list({
+    const charges = await getStripe().charges.list({
       customer: org.paymentId,
       limit: 100,
     });
@@ -878,7 +892,7 @@ export class StripeService {
     const invoicePdfMap: Record<string, string> = {};
     for (const invoiceId of invoiceIds) {
       try {
-        const inv = await stripe.invoices.retrieve(invoiceId);
+        const inv = await getStripe().invoices.retrieve(invoiceId);
         if (inv.invoice_pdf) {
           invoicePdfMap[invoiceId] = inv.invoice_pdf;
         }
@@ -907,7 +921,7 @@ export class StripeService {
 
     for (const chargeId of chargeIds) {
       try {
-        await stripe.refunds.create({ charge: chargeId });
+        await getStripe().refunds.create({ charge: chargeId });
         refunded.push(chargeId);
       } catch (err) {
         failed.push(chargeId);
@@ -926,7 +940,7 @@ export class StripeService {
     const customer = org.paymentId;
 
     const subscriptions = (
-      await stripe.subscriptions.list({
+      await getStripe().subscriptions.list({
         customer,
         status: 'all',
       })
@@ -936,7 +950,7 @@ export class StripeService {
       throw new Error('No active subscription found');
     }
 
-    await stripe.subscriptions.cancel(subscriptions[0].id);
+    await getStripe().subscriptions.cancel(subscriptions[0].id);
     await this._subscriptionService.deleteSubscription(customer);
 
     return { cancelled: true };

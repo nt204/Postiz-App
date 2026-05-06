@@ -1,0 +1,166 @@
+# =============================================================
+# docker-compose.production.yaml
+# Deploy file sạch dành cho VPS production.
+#
+# Cách dùng:
+#   cp .env.example .env          # Điền đủ biến thật
+#   docker compose -f docker-compose.production.yaml up -d
+#
+# Lưu ý:
+# - KHÔNG chạy file này với các biến mặc định/mẫu
+# - Đặt reverse proxy (Nginx/Caddy) trước port 5000 để có HTTPS
+# - Temporal (7233) chỉ expose nội bộ, không public ra internet
+# =============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  # Postiz App (backend + frontend + orchestrator trong 1 image)
+  # Nginx bên trong listen port 5000:
+  #   /api/     → backend  :3000
+  #   /uploads/ → /uploads (local files)
+  #   /         → frontend :4200
+  # ----------------------------------------------------------
+  postiz:
+    image: ghcr.io/gitroomhq/postiz-app:latest
+    container_name: postiz
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override các biến cần thiết cho Docker networking
+      DATABASE_URL: "postgresql://postiz-user:${POSTGRES_PASSWORD:-postiz-password}@postiz-postgres:5432/postiz-db-local"
+      REDIS_URL: "redis://postiz-redis:6379"
+      TEMPORAL_ADDRESS: "temporal:7233"
+      BACKEND_INTERNAL_URL: "http://localhost:3000"
+    volumes:
+      - postiz-uploads:/uploads
+      - postiz-config:/config
+    ports:
+      # Chỉ expose ra localhost — reverse proxy bên ngoài sẽ forward vào đây
+      - "127.0.0.1:5000:5000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/monitor/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - postiz-network
+      - temporal-network
+    depends_on:
+      postiz-postgres:
+        condition: service_healthy
+      postiz-redis:
+        condition: service_healthy
+
+  # ----------------------------------------------------------
+  # PostgreSQL 17 — database chính của Postiz
+  # ----------------------------------------------------------
+  postiz-postgres:
+    image: postgres:17-alpine
+    container_name: postiz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postiz-password}
+      POSTGRES_USER: postiz-user
+      POSTGRES_DB: postiz-db-local
+    volumes:
+      - postgres-volume:/var/lib/postgresql/data
+    # SECURITY: không expose ra host — chỉ nội bộ
+    expose:
+      - 5432
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postiz-user", "-d", "postiz-db-local"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 30s
+
+  # ----------------------------------------------------------
+  # Redis 7.2 — cache và queue
+  # ----------------------------------------------------------
+  postiz-redis:
+    image: redis:7.2-alpine
+    container_name: postiz-redis
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    volumes:
+      - postiz-redis-data:/data
+    expose:
+      - 6379
+    networks:
+      - postiz-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ----------------------------------------------------------
+  # Temporal Stack — background workflow engine
+  # SECURITY: 7233 chỉ expose nội bộ, không public ra internet
+  # ----------------------------------------------------------
+  temporal-postgresql:
+    container_name: temporal-postgresql
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: temporal
+    expose:
+      - 5432
+    volumes:
+      - temporal-postgres-data:/var/lib/postgresql/data
+    networks:
+      - temporal-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "temporal"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  temporal:
+    container_name: temporal
+    image: temporalio/auto-setup:1.28.1
+    restart: unless-stopped
+    # SECURITY: expose nội bộ thay vì publish 7233:7233 ra host
+    expose:
+      - 7233
+    depends_on:
+      temporal-postgresql:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=temporal-postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - TEMPORAL_NAMESPACE=default
+    networks:
+      - temporal-network
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+# ----------------------------------------------------------
+# Volumes — tất cả external: false (managed bởi Docker)
+# ----------------------------------------------------------
+volumes:
+  postgres-volume:
+  postiz-redis-data:
+  postiz-config:
+  postiz-uploads:
+  temporal-postgres-data:
+
+# ----------------------------------------------------------
+# Networks
+# ----------------------------------------------------------
+networks:
+  postiz-network:
+    driver: bridge
+  temporal-network:
+    driver: bridge
+    name: temporal-network

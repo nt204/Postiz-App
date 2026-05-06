@@ -4,9 +4,18 @@ import { shuffle } from 'lodash';
 import { zodResponseFormat } from 'openai/helpers/zod';
 import { z } from 'zod';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-proj-',
-});
+// Lazy init: chỉ khởi tạo khi có key thật, tránh boot với key placeholder
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI {
+  if (!_openai) {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) {
+      throw new Error('OPENAI_API_KEY is not set — AI features are disabled');
+    }
+    _openai = new OpenAI({ apiKey: key });
+  }
+  return _openai;
+}
 
 const PicturePrompt = z.object({
   prompt: z.string(),
@@ -20,7 +29,7 @@ const VoicePrompt = z.object({
 export class OpenaiService {
   async generateImage(prompt: string, isUrl: boolean, isVertical = false) {
     const generate = (
-      await openai.images.generate({
+      await getOpenAI().images.generate({
         prompt,
         response_format: isUrl ? 'url' : 'b64_json',
         model: 'dall-e-3',
@@ -34,7 +43,7 @@ export class OpenaiService {
   async generatePromptForPicture(prompt: string) {
     return (
       (
-        await openai.chat.completions.parse({
+        await getOpenAI().chat.completions.parse({
           model: 'gpt-4.1',
           messages: [
             {
@@ -55,7 +64,7 @@ export class OpenaiService {
   async generateVoiceFromText(prompt: string) {
     return (
       (
-        await openai.chat.completions.parse({
+        await getOpenAI().chat.completions.parse({
           model: 'gpt-4.1',
           messages: [
             {
@@ -76,7 +85,7 @@ export class OpenaiService {
   async generatePosts(content: string) {
     const posts = (
       await Promise.all([
-        openai.chat.completions.create({
+        getOpenAI().chat.completions.create({
           messages: [
             {
               role: 'assistant',
@@ -92,7 +101,7 @@ export class OpenaiService {
           temperature: 1,
           model: 'gpt-4.1',
         }),
-        openai.chat.completions.create({
+        getOpenAI().chat.completions.create({
           messages: [
             {
               role: 'assistant',
@@ -132,7 +141,7 @@ export class OpenaiService {
     );
   }
   async extractWebsiteText(content: string) {
-    const websiteContent = await openai.chat.completions.create({
+    const websiteContent = await getOpenAI().chat.completions.create({
       messages: [
         {
           role: 'assistant',
@@ -163,7 +172,7 @@ export class OpenaiService {
 
     const posts =
       (
-        await openai.chat.completions.parse({
+        await getOpenAI().chat.completions.parse({
           model: 'gpt-4.1',
           messages: [
             {
@@ -196,7 +205,7 @@ export class OpenaiService {
             try {
               return (
                 (
-                  await openai.chat.completions.parse({
+                  await getOpenAI().chat.completions.parse({
                     model: 'gpt-4.1',
                     messages: [
                       {
@@ -232,7 +241,7 @@ export class OpenaiService {
         const message = `You are an assistant that takes a text and break it into slides, each slide should have an image prompt and voice text to be later used to generate a video and voice, image prompt should capture the essence of the slide and also have a back dark gradient on top, image prompt should not contain text in the picture, generate between 3-5 slides maximum`;
         const parse =
           (
-            await openai.chat.completions.parse({
+            await getOpenAI().chat.completions.parse({
               model: 'gpt-4.1',
               messages: [
                 {
