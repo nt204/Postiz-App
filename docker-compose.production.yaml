@@ -38,7 +38,7 @@ services:
       - postiz-config:/config
     ports:
       # Chỉ expose ra localhost — reverse proxy bên ngoài sẽ forward vào đây
-      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:8743:5000"
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/monitor/health"]
       interval: 30s
